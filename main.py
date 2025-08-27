@@ -74,12 +74,18 @@ for index, user in enumerate(users, 1):
     else:
         data.setdefault("expireAt", dt.datetime.today().replace(year=2099).isoformat())
 
-    data.setdefault("trafficLimitBytes", user["totalGB"])
+    # БЕЗОПАСНАЯ проверка поля totalGB
+    if "totalGB" in user:
+        data.setdefault("trafficLimitBytes", user["totalGB"])
+    elif "total" in user:
+        data.setdefault("trafficLimitBytes", user["total"])
+    else:
+        data.setdefault("trafficLimitBytes", 0)
+        print("No totalGB field found, setting trafficLimitBytes to 0")
 
     # Временно убираем shortUuid чтобы избежать конфликтов
-    # if "subId" in user and user["subId"]:
-    #     print(f"Found subId: {user['subId']}")
-    #     data.setdefault("shortUuid", user["subId"])
+    if "subId" in user and user["subId"]:
+        print(f"Found subId: {user['subId']} (but skipping to avoid conflicts)")
 
     data.setdefault("tag", "XUI")
 
@@ -90,18 +96,13 @@ for index, user in enumerate(users, 1):
         
         if r.status_code == 201:
             print(f"✅ User {user['email']} was added as {data['username']}")
-        elif r.status_code == 400 and "short UUID already exists" in r.text:
-            print(f"⚠️  short UUID exists for {user['email']}, trying without shortUuid...")
-            # Пробуем ещё раз без shortUuid
-            if "shortUuid" in data:
-                del data["shortUuid"]
-                r = remna.post(remna_url + "/users", json=data)
-                if r.status_code == 201:
-                    print(f"✅ User {user['email']} was added without short UUID")
-                else:
-                    print(f"❌ ERROR {user['email']} -", r.text)
+        elif r.status_code == 400 and "already exists" in r.text:
+            if "username already exists" in r.text:
+                print(f"⚠️  Username {data['username']} already exists, skipping...")
+            elif "short UUID already exists" in r.text:
+                print(f"⚠️  short UUID exists for {user['email']}, skipping...")
             else:
-                print(f"❌ ERROR {user['email']} -", r.text)
+                print(f"⚠️  User already exists: {user['email']}, skipping...")
         else:
             print(f"❌ ERROR {user['email']} - Status: {r.status_code}", r.text)
             
