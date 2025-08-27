@@ -74,14 +74,16 @@ for index, user in enumerate(users, 1):
     else:
         data.setdefault("expireAt", dt.datetime.today().replace(year=2099).isoformat())
 
-    # БЕЗОПАСНАЯ проверка поля totalGB
+    # БЕЗОПАСНАЯ проверка поля totalGB - ИСПРАВЛЕНИЕ!
     if "totalGB" in user:
         data.setdefault("trafficLimitBytes", user["totalGB"])
+        print(f"Using totalGB: {user['totalGB']}")
     elif "total" in user:
         data.setdefault("trafficLimitBytes", user["total"])
+        print(f"Using total: {user['total']}")
     else:
         data.setdefault("trafficLimitBytes", 0)
-        print("No totalGB field found, setting trafficLimitBytes to 0")
+        print("No totalGB/total field found, setting trafficLimitBytes to 0")
 
     # Временно убираем shortUuid чтобы избежать конфликтов
     if "subId" in user and user["subId"]:
