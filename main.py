@@ -36,22 +36,34 @@ if remna_url.startswith("http://"):
 username_pattern = re.compile("^[a-zA-Z0-9_-]+$")
 
 users = json.loads(xui.get(xui_url + f"/panel/api/inbounds/get/{inbound_id}").json()["obj"]["settings"])["clients"]
-for user in users:
+
+print(f"Found {len(users)} users to migrate")
+
+for index, user in enumerate(users, 1):
+    print(f"\nProcessing user {index}/{len(users)}: {user.get('email', 'no-email')}")
+    
     data = {}
 
+    # Отладочная информация
+    print(f"User keys: {list(user.keys())}")
+    
     if username_pattern.match(user["email"]) and len(user["email"]) >= 6:
         data.setdefault("username", user["email"])
     else:
         data.setdefault("username", user["id"].split("-")[0])
 
-    # ИСПРАВЛЕНИЕ 1: Безопасная проверка поля comment
+    # БЕЗОПАСНАЯ проверка поля comment
     if "comment" in user and user["comment"]:
         data.setdefault("description", user["comment"])
-    # Дополнительные проверки для других возможных полей
+        print(f"Using comment: {user['comment']}")
     elif "description" in user and user["description"]:
         data.setdefault("description", user["description"])
+        print(f"Using description: {user['description']}")
     elif "remarks" in user and user["remarks"]:
         data.setdefault("description", user["remarks"])
+        print(f"Using remarks: {user['remarks']}")
+    else:
+        print("No comment/description/remarks field found")
 
     data.setdefault("status", "ACTIVE" if user["enable"] else "DISABLE")
 
@@ -64,30 +76,36 @@ for user in users:
 
     data.setdefault("trafficLimitBytes", user["totalGB"])
 
-    # ИСПРАВЛЕНИЕ 2: Пропускаем shortUuid если он уже существует
-    # или обрабатываем ошибку дубликата
-    if "subId" in user and user["subId"]:
-        # Проверяем, существует ли уже пользователь с таким shortUuid
-        # Если да, то не добавляем это поле или генерируем новый
-        data.setdefault("shortUuid", user["subId"])
+    # Временно убираем shortUuid чтобы избежать конфликтов
+    # if "subId" in user and user["subId"]:
+    #     print(f"Found subId: {user['subId']}")
+    #     data.setdefault("shortUuid", user["subId"])
 
     data.setdefault("tag", "XUI")
 
-    r = remna.post(remna_url + "/users", json=data)
+    print(f"Sending data: {json.dumps(data, indent=2)}")
     
-    if r.status_code == 201:
-        print(f"User {user['email']} was added as {data['username']}")
-    elif r.status_code == 400 and "short UUID already exists" in r.text:
-        # Если short UUID уже существует, пробуем без него
-        print(f"Warning: short UUID exists for {user['email']}, trying without...")
-        if "shortUuid" in data:
-            del data["shortUuid"]
-            r = remna.post(remna_url + "/users", json=data)
-            if r.status_code == 201:
-                print(f"User {user['email']} was added without short UUID")
+    try:
+        r = remna.post(remna_url + "/users", json=data)
+        
+        if r.status_code == 201:
+            print(f"✅ User {user['email']} was added as {data['username']}")
+        elif r.status_code == 400 and "short UUID already exists" in r.text:
+            print(f"⚠️  short UUID exists for {user['email']}, trying without shortUuid...")
+            # Пробуем ещё раз без shortUuid
+            if "shortUuid" in data:
+                del data["shortUuid"]
+                r = remna.post(remna_url + "/users", json=data)
+                if r.status_code == 201:
+                    print(f"✅ User {user['email']} was added without short UUID")
+                else:
+                    print(f"❌ ERROR {user['email']} -", r.text)
             else:
-                print(f"ERROR {user['email']} -", r.text)
+                print(f"❌ ERROR {user['email']} -", r.text)
         else:
-            print(f"ERROR {user['email']} -", r.text)
-    else:
-        print(f"ERROR {user['email']} -", r.text)
+            print(f"❌ ERROR {user['email']} - Status: {r.status_code}", r.text)
+            
+    except Exception as e:
+        print(f"❌ Exception for {user['email']}: {str(e)}")
+
+print("\nMigration completed!")
