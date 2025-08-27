@@ -45,8 +45,13 @@ for user in users:
     else:
         data.setdefault("username", user["id"].split("-")[0])
 
-    if user["comment"]:
+    if "comment" in user and user["comment"]:
         data.setdefault("description", user["comment"])
+    # Альтернативно: проверяем другие возможные поля для комментария
+    elif "description" in user and user["description"]:
+        data.setdefault("description", user["description"])
+    elif "remarks" in user and user["remarks"]:
+        data.setdefault("description", user["remarks"])
 
     data.setdefault("status", "ACTIVE" if user["enable"] else "DISABLE")
 
