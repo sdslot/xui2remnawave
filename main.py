@@ -16,7 +16,6 @@ remna_token = input("Remnawave API token: ")
 
 inbound_id = input("3X-UI inbound id: ")
 
-
 remna_url += "/api"
 
 xui = httpx.Client()
@@ -45,17 +44,16 @@ for user in users:
     else:
         data.setdefault("username", user["id"].split("-")[0])
 
+    # ИСПРАВЛЕНИЕ 1: Безопасная проверка поля comment
     if "comment" in user and user["comment"]:
         data.setdefault("description", user["comment"])
-    # Альтернативно: проверяем другие возможные поля для комментария
+    # Дополнительные проверки для других возможных полей
     elif "description" in user and user["description"]:
         data.setdefault("description", user["description"])
     elif "remarks" in user and user["remarks"]:
         data.setdefault("description", user["remarks"])
 
     data.setdefault("status", "ACTIVE" if user["enable"] else "DISABLE")
-
-    uid = user["id"]
 
     data.setdefault("vlessUuid", user["id"])
 
@@ -66,13 +64,30 @@ for user in users:
 
     data.setdefault("trafficLimitBytes", user["totalGB"])
 
-    if user["subId"]:
+    # ИСПРАВЛЕНИЕ 2: Пропускаем shortUuid если он уже существует
+    # или обрабатываем ошибку дубликата
+    if "subId" in user and user["subId"]:
+        # Проверяем, существует ли уже пользователь с таким shortUuid
+        # Если да, то не добавляем это поле или генерируем новый
         data.setdefault("shortUuid", user["subId"])
 
     data.setdefault("tag", "XUI")
 
     r = remna.post(remna_url + "/users", json=data)
+    
     if r.status_code == 201:
         print(f"User {user['email']} was added as {data['username']}")
+    elif r.status_code == 400 and "short UUID already exists" in r.text:
+        # Если short UUID уже существует, пробуем без него
+        print(f"Warning: short UUID exists for {user['email']}, trying without...")
+        if "shortUuid" in data:
+            del data["shortUuid"]
+            r = remna.post(remna_url + "/users", json=data)
+            if r.status_code == 201:
+                print(f"User {user['email']} was added without short UUID")
+            else:
+                print(f"ERROR {user['email']} -", r.text)
+        else:
+            print(f"ERROR {user['email']} -", r.text)
     else:
         print(f"ERROR {user['email']} -", r.text)
