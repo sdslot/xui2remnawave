@@ -20,7 +20,7 @@ echo "Установка зависимостей..."
 pip install httpx
 
 echo "Скачивание скрипта..."
-curl -sSL  https://raw.githubusercontent.com/sdslot/xui2remnawave/sdslot-patch-3/main.py -o "$TEMP_FILE"
+curl -sSL  https://raw.githubusercontent.com/sdslot/xui2remnawave/sdslot-patch-3-1/main.py -o "$TEMP_FILE"
 
 echo "Запуск..."
 python "$TEMP_FILE" < /dev/tty > /dev/tty
